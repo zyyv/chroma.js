@@ -1,7 +1,7 @@
 import chroma from '../../chroma.js';
 import Color from '../../Color.js';
 import input from '../input.js';
-import { unpack, type } from '../../utils/index.js';
+import { unpack, typeString } from '../../utils/index.js';
 import cmyk2rgb from './cmyk2rgb.js';
 import rgb2cmyk from './rgb2cmyk.js';
 
