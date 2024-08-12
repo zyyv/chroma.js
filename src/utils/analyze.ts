@@ -1,199 +1,172 @@
-import { typeString } from './type-string'
+import type { Arrayable } from './types'
 
 const { log, floor, abs } = Math
 
-export function analyze(data, key = null) {
-  const r = {
+interface AnalysisResult {
+  min: number
+  max: number
+  sum: number
+  values: number[]
+  count: number
+  domain: number[]
+  limits: (mode: string, num: number) => number[]
+}
+
+type Data = (number | undefined | null)[] | Arrayable<Record<string, number | Record<string, number>>>
+
+export function analyze(data: Data, key?: string): AnalysisResult {
+  const values = Array.isArray(data) ? data : Object.values(data)
+  const r = values.reduce((acc, val) => {
+    if (key && typeof val === 'object')
+      val = val?.[key]
+    if (val != null && !Number.isNaN(val)) {
+      acc.values.push(val as number)
+      acc.sum += val as number
+      acc.min = Math.min(acc.min, val as number)
+      acc.max = Math.max(acc.max, val as number)
+      acc.count += 1
+    }
+    return acc
+  }, {
     min: Number.MAX_VALUE,
-    max: Number.MAX_VALUE * -1,
+    max: -Number.MAX_VALUE,
     sum: 0,
     values: [],
     count: 0,
+  } as Omit<AnalysisResult, 'domain' | 'limits' >)
+
+  return {
+    ...r,
+    domain: [r.min, r.max],
+    limits: (mode, num) => limits(r, mode, num),
   }
-  if (typeString(data) === 'object') {
-    data = Object.values(data)
-  }
-  data.forEach((val) => {
-    if (key && typeString(val) === 'object')
-      val = val[key]
-    if (val !== undefined && val !== null && !Number.isNaN(val)) {
-      r.values.push(val)
-      r.sum += val
-      if (val < r.min)
-        r.min = val
-      if (val > r.max)
-        r.max = val
-      r.count += 1
-    }
-  })
-
-  r.domain = [r.min, r.max]
-
-  r.limits = (mode, num) => limits(r, mode, num)
-
-  return r
 }
 
-export function limits(data, mode = 'equal', num = 7) {
-  if (typeString(data) == 'array') {
+export function limits(
+  data: (number | undefined | null)[] | { min: number, max: number, values: number[] },
+  mode: string = 'equal',
+  num: number = 7,
+): number[] {
+  if (Array.isArray(data)) {
     data = analyze(data)
   }
-  const { min, max } = data
-  const values = data.values.sort((a, b) => a - b)
+  const { min, max, values } = data
+  const sortedValues = [...values].sort((a, b) => a - b)
 
   if (num === 1) {
     return [min, max]
   }
 
-  const limits = []
+  const limits: number[] = []
+  switch (mode[0]) {
+    case 'c':{
+      limits.push(min, max)
+      break
+    }
 
-  if (mode.substr(0, 1) === 'c') {
-    // continuous
-    limits.push(min)
-    limits.push(max)
-  }
-
-  if (mode.substr(0, 1) === 'e') {
-    // equal interval
-    limits.push(min)
-    for (let i = 1; i < num; i++) {
-      limits.push(min + (i / num) * (max - min))
-    }
-    limits.push(max)
-  }
-  else if (mode.substr(0, 1) === 'l') {
-    // log scale
-    if (min <= 0) {
-      throw new Error(
-        'Logarithmic scales are only possible for values > 0',
-      )
-    }
-    const min_log = Math.LOG10E * log(min)
-    const max_log = Math.LOG10E * log(max)
-    limits.push(min)
-    for (let i = 1; i < num; i++) {
-      limits.push(10 ** (min_log + (i / num) * (max_log - min_log)))
-    }
-    limits.push(max)
-  }
-  else if (mode.substr(0, 1) === 'q') {
-    // quantile scale
-    limits.push(min)
-    for (let i = 1; i < num; i++) {
-      const p = ((values.length - 1) * i) / num
-      const pb = floor(p)
-      if (pb === p) {
-        limits.push(values[pb])
+    case 'e':{
+      limits.push(min)
+      for (let i = 1; i < num; i++) {
+        limits.push(min + (i / num) * (max - min))
       }
-      else {
-        // p > pb
-        const pr = p - pb
-        limits.push(values[pb] * (1 - pr) + values[pb + 1] * pr)
-      }
+      limits.push(max)
+      break
     }
-    limits.push(max)
-  }
-  else if (mode.substr(0, 1) === 'k') {
-    // k-means clustering
-    /*
-        implementation based on
-        http://code.google.com/p/figue/source/browse/trunk/figue.js#336
-        simplified for 1-d input values
-        */
-    let cluster
-    const n = values.length
-    const assignments = new Array(n)
-    const clusterSizes = new Array(num)
-    let repeat = true
-    let nb_iters = 0
-    let centroids = null
 
-    // get seed values
-    centroids = []
-    centroids.push(min)
-    for (let i = 1; i < num; i++) {
-      centroids.push(min + (i / num) * (max - min))
-    }
-    centroids.push(max)
-
-    while (repeat) {
-      // assignment step
-      for (let j = 0; j < num; j++) {
-        clusterSizes[j] = 0
+    case 'l':{
+      if (min <= 0) {
+        throw new Error('Logarithmic scales are only possible for values > 0')
       }
-      for (let i = 0; i < n; i++) {
-        const value = values[i]
-        let mindist = Number.MAX_VALUE
-        let best
-        for (let j = 0; j < num; j++) {
-          const dist = abs(centroids[j] - value)
-          if (dist < mindist) {
-            mindist = dist
-            best = j
+      const min_log = Math.LOG10E * log(min)
+      const max_log = Math.LOG10E * log(max)
+      limits.push(min)
+      for (let i = 1; i < num; i++) {
+        limits.push(10 ** (min_log + (i / num) * (max_log - min_log)))
+      }
+      limits.push(max)
+      break
+    }
+
+    case 'q':{
+      limits.push(min)
+      for (let i = 1; i < num; i++) {
+        const p = ((sortedValues.length - 1) * i) / num
+        const pb = floor(p)
+        if (pb === p) {
+          limits.push(sortedValues[pb])
+        }
+        else {
+          const pr = p - pb
+          limits.push(sortedValues[pb] * (1 - pr) + sortedValues[pb + 1] * pr)
+        }
+      }
+      limits.push(max)
+      break
+    }
+
+    case 'k':{
+      const n = sortedValues.length
+      const assignments: number[] = Array.from({ length: n })
+      const clusterSizes: number[] = Array.from({ length: num }, () => 0)
+      let centroids = Array.from({ length: num }, (_, i) => min + (i / num) * (max - min))
+      let repeat = true
+      let nbIters = 0
+
+      while (repeat) {
+        clusterSizes.fill(0)
+        for (let i = 0; i < n; i++) {
+          const value = sortedValues[i]
+          let mindist = Number.MAX_VALUE
+          let best = 0
+          for (let j = 0; j < num; j++) {
+            const dist = abs(centroids[j] - value)
+            if (dist < mindist) {
+              mindist = dist
+              best = j
+            }
           }
           clusterSizes[best]++
           assignments[i] = best
         }
+
+        const newCentroids = Array.from({ length: num }, () => 0)
+        for (let i = 0; i < n; i++) {
+          newCentroids[assignments[i]] += sortedValues[i]
+        }
+        for (let j = 0; j < num; j++) {
+          newCentroids[j] /= clusterSizes[j]
+        }
+
+        repeat = !newCentroids.every((c, i) => c === centroids[i])
+        centroids = newCentroids
+        nbIters++
+        if (nbIters > 200) {
+          repeat = false
+        }
       }
 
-      // update centroids step
-      const newCentroids = new Array(num)
+      const kClusters: Record<number, number[]> = {}
       for (let j = 0; j < num; j++) {
-        newCentroids[j] = null
+        kClusters[j] = []
       }
       for (let i = 0; i < n; i++) {
-        cluster = assignments[i]
-        if (newCentroids[cluster] === null) {
-          newCentroids[cluster] = values[i]
-        }
-        else {
-          newCentroids[cluster] += values[i]
-        }
-      }
-      for (let j = 0; j < num; j++) {
-        newCentroids[j] *= 1 / clusterSizes[j]
+        kClusters[assignments[i]].push(sortedValues[i])
       }
 
-      // check convergence
-      repeat = false
-      for (let j = 0; j < num; j++) {
-        if (newCentroids[j] !== centroids[j]) {
-          repeat = true
-          break
+      const tmpKMeansBreaks = Object.values(kClusters).flatMap(cluster => [cluster[0], cluster[cluster.length - 1]])
+      tmpKMeansBreaks.sort((a, b) => a - b)
+      limits.push(tmpKMeansBreaks[0])
+      for (let i = 1; i < tmpKMeansBreaks.length; i += 2) {
+        const v = tmpKMeansBreaks[i]
+        if (!Number.isNaN(v) && !limits.includes(v)) {
+          limits.push(v)
         }
       }
-
-      centroids = newCentroids
-      nb_iters++
-
-      if (nb_iters > 200) {
-        repeat = false
-      }
+      break
     }
 
-    // finished k-means clustering
-    // the next part is borrowed from gabrielflor.it
-    const kClusters = {}
-    for (let j = 0; j < num; j++) {
-      kClusters[j] = []
-    }
-    for (let i = 0; i < n; i++) {
-      cluster = assignments[i]
-      kClusters[cluster].push(values[i])
-    }
-    let tmpKMeansBreaks = []
-    for (let j = 0; j < num; j++) {
-      tmpKMeansBreaks.push(kClusters[j][0])
-      tmpKMeansBreaks.push(kClusters[j][kClusters[j].length - 1])
-    }
-    tmpKMeansBreaks = tmpKMeansBreaks.sort((a, b) => a - b)
-    limits.push(tmpKMeansBreaks[0])
-    for (let i = 1; i < tmpKMeansBreaks.length; i += 2) {
-      const v = tmpKMeansBreaks[i]
-      if (!isNaN(v) && !limits.includes(v)) {
-        limits.push(v)
-      }
-    }
+    default:
+      throw new Error(`Unknown mode: ${mode}`)
   }
   return limits
 }

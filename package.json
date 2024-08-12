@@ -36,9 +36,8 @@
     "docs-preview": "cd docs && make && make preview",
     "test": "vitest",
     "test:update": "vitest -u",
-    "lint": "prettier --check index.js index-light.js src *.config.js test && eslint index.js index-light.js src",
-    "format": "prettier --write index.js index-light.js src *.config.js test",
-    "prepare": "husky"
+    "lint": "eslint --cache .",
+    "lint:fix": "pnpm lint --fix"
   },
   "devDependencies": {
     "@antfu/eslint-config": "^2.25.0",
