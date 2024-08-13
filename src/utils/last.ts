@@ -1,10 +1,10 @@
-import { typeString } from './type-string'
-
-export default (args) => {
-  if (args.length < 2)
+export default function processArgs(args: any[]): string | null {
+  if (args.length < 2) {
     return null
+  }
   const l = args.length - 1
-  if (typeString(args[l]) === 'string')
+  if (typeof args[l] === 'string') {
     return args[l].toLowerCase()
+  }
   return null
 }

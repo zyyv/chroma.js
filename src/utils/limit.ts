@@ -1,5 +1,3 @@
-import { max, min } from '.'
-
-export default (x, low = 0, high = 1) => {
-  return min(max(low, x), high)
+export default function limit(x: number, low: number = 0, high: number = 1): number {
+  return Math.min(Math.max(low, x), high)
 }

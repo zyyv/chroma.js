@@ -1,4 +1,4 @@
-import Color from '../Color.js'
+import Color from '../Color'
 
 // simple Euclidean distance
 export default function (a: unknown, b: unknown, mode = 'lab') {

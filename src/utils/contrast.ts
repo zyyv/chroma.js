@@ -1,4 +1,4 @@
-import Color from '../Color.js'
+import Color from '../Color'
 import '../ops/luminance.js'
 
 export default (a, b) => {

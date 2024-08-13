@@ -1,14 +1,14 @@
-import Color from '../Color.js'
+import Color from '../Color'
 
 const { sqrt, min, max, atan2, abs, cos, sin, exp, PI } = Math
 
 export default function (a, b, Kl = 1, Kc = 1, Kh = 1) {
   // Delta E (CIE 2000)
   // see http://www.brucelindbloom.com/index.html?Eqn_DeltaE_CIE2000.html
-  const rad2deg = function (rad) {
+  const rad2deg = function (rad: number) {
     return (360 * rad) / (2 * PI)
   }
-  const deg2rad = function (deg) {
+  const deg2rad = function (deg: number) {
     return (2 * PI * deg) / 360
   }
   a = new Color(a)
